@@ -1,10 +1,13 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { doc, getDoc } from 'firebase/firestore';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { db } from './firebase/config';
 import WelcomePage from './components/WelcomePage';
 import SignUp from './components/auth/SignUp';
 import LogIn from './components/auth/LogIn';
 import ProtectedRoute from './components/ProtectedRoute';
+import OnboardingContainer from './components/Onboarding/OnboardingContainer';
 
 // Redirects logged-in users away from public-only pages (/, /signup, /login)
 function PublicOnlyRoute({ children }) {
@@ -14,12 +17,25 @@ function PublicOnlyRoute({ children }) {
   return children;
 }
 
-function OnboardingPage() {
-  return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8f9fa' }}>
-      <h2 style={{ color: '#1a1a2e', fontFamily: 'sans-serif' }}>Onboarding — coming in US-3</h2>
-    </div>
-  );
+// Skips onboarding if the user has already completed it
+function OnboardingGuard({ children }) {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [checking, setChecking] = useState(true);
+
+  useEffect(() => {
+    if (!user) return;
+    getDoc(doc(db, 'users', user.uid)).then((snap) => {
+      if (snap.exists() && snap.data().onboardingComplete) {
+        navigate('/home', { replace: true });
+      } else {
+        setChecking(false);
+      }
+    });
+  }, [user, navigate]);
+
+  if (checking) return null;
+  return children;
 }
 
 function HomePage() {
@@ -63,7 +79,9 @@ function AppRoutes() {
         path="/onboarding"
         element={
           <ProtectedRoute>
-            <OnboardingPage />
+            <OnboardingGuard>
+              <OnboardingContainer />
+            </OnboardingGuard>
           </ProtectedRoute>
         }
       />
